@@ -34,10 +34,10 @@ like this:
 ````java
 InputStream stream = getClass().getResourceAsStream("/keystore.jceks");
 Config redacted = ConfigFactory.load();
-Config revealed = KeyStoreConfigEditor.from(stream, "CHANGEME").reveal(config);
+Config revealed = KeyStoreConfigEditor.from(stream, "CHANGEME", StoreType.JCEKS).reveal(config);
 
 ````
-... where the `revealed` instance contains all secrets in clear text and is passed to the application code.
+... where the `revealed` `Config` instance contains all secrets in clear text and is passed to the application code.
 
 ## Command line tool
 
