@@ -1,7 +1,7 @@
 # Hocon Keystore
 Hocon Keystore is a small java library for managing 
 [HOCON](https://github.com/typesafehub/config) secrets in a Java keystore. Secrets are 
-stored in portable PKCS12 (.p12) keystore files.
+stored in JCEKS or the more portable PKCS12 (.p12) keystore format.
 
 ## Overview
 Secrets in HOCON configuration files are **redacted**, i.e. **replaced by five 
