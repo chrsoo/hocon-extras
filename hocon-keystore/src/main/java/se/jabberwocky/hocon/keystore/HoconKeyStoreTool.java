@@ -167,7 +167,7 @@ public class HoconKeyStoreTool implements Runnable {
             case "upsert":
                 manageKeystore(config -> editor.upsert(config)); break;
             case "update":
-                handle(config -> editor.update(config)); break;
+                manageKeystore(config -> editor.update(config)); break;
             case "redact":
                 manageConfig(config -> editor.redact(config)); break;
             case "reveal":
