@@ -14,6 +14,7 @@
 
     <modules>
         <module>hocon-keystore</module>
+        <module>hocon-hiera</module>
     </modules>
 
     <properties>
