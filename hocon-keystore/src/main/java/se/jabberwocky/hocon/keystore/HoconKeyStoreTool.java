@@ -26,7 +26,7 @@ public class HoconKeyStoreTool implements Runnable {
     private static final OptionParser parser = new OptionParser();
 
     private static final OptionSpec<File> keystoreSpec = parser.accepts(
-            "keystore","PKCS12 keystore file" )
+            "keystore","keystore file" )
             .withRequiredArg()
             .required()
             .ofType(File.class);
@@ -48,23 +48,23 @@ public class HoconKeyStoreTool implements Runnable {
     private static final OptionSpec<Void> jsonSpec = parser.accepts(
             "json", "Optionally print HOCON as JSON" );
 
-    private static final OptionSpec<StoreType> typeSpec = parser.accepts(
+    private static final OptionSpec<KeyStoreType> typeSpec = parser.accepts(
             "store-type",
             "Keystore type overriding type deduced from file type, either "
-                    + StoreType.PKCS12 + " or " + StoreType.JCEKS)
+                    + KeyStoreType.PKCS12 + " or " + KeyStoreType.JCEKS)
             .withOptionalArg()
-            .ofType(StoreType.class)
-            .defaultsTo(StoreType.JCEKS);;
+            .ofType(KeyStoreType.class)
+            .defaultsTo(KeyStoreType.JCEKS);;
 
     private static final NonOptionArgumentSpec<String> nonOptionsSpec = parser.nonOptions(
             "Supported comands:\n\n" +
-                "  get <key>              get an entry\n" +
-                "  del <key>              delete an entry\n" +
-                "  put <key>=<value>      update an entry\n" +
-                "  update <config>        update entries in keystore\n" +
-                "  upsert <config>        insert or update entries in keystore\n" +
-                "  redact <config>        redact entries from keystore\n" +
-                "  reveal <config>        reveal entries from keystore\n")
+                "  get <key>               get an entry\n" +
+                "  del <key>               delete an entry\n" +
+                "  put <key>=<value>       update an entry\n" +
+                "  update <config>         update entries in keystore\n" +
+                "  upsert <config>         insert or update entries in keystore\n" +
+                "  redact <config>         redact entries from keystore\n" +
+                "  reveal <config>         reveal entries from keystore\n")
                 .ofType(String.class)
                 .describedAs("<command> <argument>");
 
@@ -103,7 +103,7 @@ public class HoconKeyStoreTool implements Runnable {
 
             File keystore = options.valueOf(keystoreSpec);
             String password = options.valueOf(passwordSpec);
-            StoreType type = options.valueOf(typeSpec);
+            KeyStoreType type = getStoreType(options);
             boolean create = options.has(createSpec);
             boolean replace = options.has(replaceSpec);
             boolean json = options.has(jsonSpec);
@@ -133,6 +133,30 @@ public class HoconKeyStoreTool implements Runnable {
             e.printStackTrace(System.err);
             exit(UNHANDLED_EXCEPTION);
         }
+    }
+
+    private static KeyStoreType getStoreType(OptionSet options) {
+
+        String name = options.valueOf(keystoreSpec).getName();
+        KeyStoreType deduced = KeyStoreType.fromFilename(name);
+
+        if(options.has(typeSpec)) {
+            KeyStoreType given = options.valueOf(typeSpec);
+            if(given != deduced) {
+                LOGGER.warning("The given keystore type of " + given
+                        + " is different from the type " + deduced
+                        + " deduced from the file extension");
+            }
+            return given;
+        }
+
+        if(deduced == KeyStoreType.UNKNOWN) {
+            LOGGER.warning("Unknown keystore type");
+        } else {
+            LOGGER.info("Deduced the type " + deduced + " from the keystore file extension");
+        }
+
+        return deduced;
     }
 
     private static String buildErrorMessage(Throwable cause) {

@@ -275,7 +275,7 @@ public final class HoconKeyStoreEditor {
         }
     }
 
-    public static HoconKeyStoreEditor create(Path path, String password, StoreType type) {
+    public static HoconKeyStoreEditor create(Path path, String password, KeyStoreType type) {
         try {
             if(!Files.exists(path)) {
                 path = Files.createFile(path);
@@ -290,7 +290,7 @@ public final class HoconKeyStoreEditor {
 
     }
 
-    public static HoconKeyStoreEditor from(Path path, String password, StoreType type) {
+    public static HoconKeyStoreEditor from(Path path, String password, KeyStoreType type) {
         try {
             InputStream stream = Files.newInputStream(path);
             return from(stream, password, type);
@@ -299,7 +299,7 @@ public final class HoconKeyStoreEditor {
         }
     }
 
-    public static HoconKeyStoreEditor from(InputStream stream, String password, StoreType type) {
+    public static HoconKeyStoreEditor from(InputStream stream, String password, KeyStoreType type) {
         try {
             KeyStore keyStore = KeyStore.getInstance(type.name());
             keyStore.load(stream, password.toCharArray());

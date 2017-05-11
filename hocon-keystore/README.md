@@ -82,13 +82,13 @@ Config {
 The Hocon Keystore API is centered around the `KeyStoreConfigEditor` class that provides
 a fluent API around a keystore. Typical usage in an application would look something
 like this:
-
-_// TODO Provide a more realistic example where keystore file and password is taken from system properties_
-
 ```java
 InputStream stream = getClass().getResourceAsStream("/keystore.jceks");
 Config redacted = ConfigFactory.load();
-Config revealed = KeyStoreConfigEditor.from(stream, "CHANGEME", StoreType.JCEKS).reveal(config);
+// HOCON autmatically maps system variables to config entries and the password can be passed to 
+// the application using the java -D option, e.g. "-Dpassword=secret"
+String password = redacted.getString("password");
+Config revealed = KeyStoreConfigEditor.from(stream, password, StoreType.JCEKS).reveal(config);
 
 ```
 ... where the `revealed` `Config` instance contains all secrets in clear text and is passed to the application code.
@@ -135,24 +135,23 @@ Option (* = required)     Description
 Please see below for details on the available commands and arguments!
 
 ### Managing HOCON keystores
-keystore entries can be managed in bulk by supplying a HOCON configuration file. HOCON 
-configuration files can also be redacted or have their secrets revealed.
+Keystore entries can be managed in bulk by supplying a HOCON configuration file.
  
 #### Add or update all configuration entries
-Add or update all entries from a configuration file to a keystore:
+All entries in the configuration file are added to the keystore. If an entry already exists, it is 
+updated with the value from the configuration file.
 ```
 java -jar hocon-keytool.jar --password CHANGEME --keystore keystore.jceks \
     upsert application.conf
 ```
 #### Update all configuration entries
-Update all entries from a configuration file to a keystore:
+All entries in the keystore are updated with values from the configuration file.
 ```
 java -jar hocon-keytool.jar --password CHANGEME --keystore keystore.jceks \
     update application.conf
 ```
 
-**If the entries do not exist in the keystore the update will fail 
-and the keystore is left unchanged**
+**If entries do not exist in the keystore the update fails and the keystore is left unchanged**
 
 ### Managing HOCON configuration files
 Secrets in HOCON configuration files can be redacted or revealed. The output is either given on stdout or the
@@ -181,8 +180,7 @@ If the optional parameter `--replace-config` is given the
 configuration file is replaced by the revealed content, else the redacted
 content is written to std out.
 
-**The operation will fail if there are entries in the configuration file that do 
- match any entry in the keystore.**
+**The operation fails if there are entries in the configuration file that do match any entry in the keystore.**
  
 ### Managing individual entries in a keystore
 Secret key entries in the keystore can be managed individually. 

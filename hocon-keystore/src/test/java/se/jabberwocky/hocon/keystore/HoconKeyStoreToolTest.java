@@ -28,7 +28,7 @@ public class HoconKeyStoreToolTest {
         original = Paths.get(getClass().getResource("/keystore.jceks").getFile());
         Files.copy(original, keystore, StandardCopyOption.REPLACE_EXISTING);
 
-        editor = HoconKeyStoreEditor.create(keystore, "CHANGEME", StoreType.JCEKS);
+        editor = HoconKeyStoreEditor.create(keystore, "CHANGEME", KeyStoreType.JCEKS);
 
         conf = Files.createTempFile("application-", ".conf");
         original = Paths.get(getClass().getResource("/application.conf").getFile());

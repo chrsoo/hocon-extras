@@ -136,7 +136,7 @@ public class HoconKeyStoreEditorTest {
     @Test
     public void from_stream() {
         InputStream stream = getClass().getResourceAsStream("/keystore.jceks");
-        Config revealed = HoconKeyStoreEditor.from(stream, "CHANGEME", StoreType.JCEKS).reveal(config);
+        Config revealed = HoconKeyStoreEditor.from(stream, "CHANGEME", KeyStoreType.JCEKS).reveal(config);
         assertEquals("REDACTED", revealed.getString("Config.Redacted"));
     }
 
