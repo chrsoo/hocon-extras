@@ -4,16 +4,13 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
 import java.nio.file.*;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * HOCON Hiera implementation backed by a FileSystem
  */
 public class HoconHieraFileSystem implements HoconHiera {
 
-    public static final String HIERA_CONFIG_FILE = "hierarchy.conf";
-    public static final String DEFAULT_CONFIG_FILE = "default.conf";
+    public static final String HIERA_CONFIG_FILE = "hiera.conf";
 
     private final FileSystem fileSystem;
     private final Path root;
@@ -31,37 +28,20 @@ public class HoconHieraFileSystem implements HoconHiera {
         this.root = root;
     }
 
-
     @Override
-    public List<String> hierarchy() {
-        return root().getList(HIERARCHY_CONFIG_KEY).stream()
-                .map(config -> config.unwrapped().toString())
-                .collect(Collectors.toList());
+    public Config hiera() {
+        return config(HIERA_CONFIG_FILE);
     }
 
     @Override
-    public Config root() {
-        Path path = fileSystem.getPath(root.toString(), HIERA_CONFIG_FILE);
-        return config(path);
-    }
-
-    @Override
-    public Config config(String facet, String value) {
-
-        if(value == null) {
-            return config(fileSystem.getPath(root.toString(),facet, DEFAULT_CONFIG_FILE));
-        }
-
-        Path path = fileSystem.getPath(root.toString(),facet, value + ".conf");
-        return config(path);
-
-    }
-
-    private Config config(Path path) {
+    public Config config(String file) {
+        Path path = root.resolve(file);
         if(Files.exists(path)) {
             return ConfigFactory.parseFile(path.toFile());
         } else {
-            throw new IllegalArgumentException("The facet value does not match a config file");
+            // FIXME log warning "The facet value does not match a config file"
+            return ConfigFactory.empty();
         }
     }
+
 }

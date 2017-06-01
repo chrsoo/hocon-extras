@@ -1,8 +1,8 @@
 package se.jabberwocky.hocon.hiera;
 
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -10,18 +10,44 @@ import java.util.Map;
  */
 public interface HoconHiera {
 
-    static final String HIERARCHY_CONFIG_KEY = "hierarchy";
+    /**
+     * Key used to retrieve the hierarchy of files in the hiera configuration.
+     */
+    String HIERARCHY_CONFIG_KEY = "hierarchy";
 
-    List<String> hierarchy();
+    /**
+     * Return the unresolved Hiera Config that contains a list of paths under the HIERARCHY_CONFIG_KEY.
+     *
+     * @return an unresolved Hiera config
+     */
+    Config hiera();
 
-    Config root();
+    /**
+     * Retrieve the config for the given path
+     *
+     * @param path to a configuration file
+     * @return the parsed config or null if the path does not exist
+     */
+    Config config(String path);
 
-    Config config(String facet, String value);
+    /**
+     * Retrieve the resolved configuration for a given set of facts
+     *
+     * @param facts used to resolve the configuration
+     * @return configuration matching the facts
+     */
+    default Config config(Map<String,String> facts) {
 
-    default Config config(Map<String,String> facets) {
-        return hierarchy()
-                .stream()
-                .map(facet -> config(facet, facets.get(facet)))
-                .reduce(root(), (parent, child) -> child.withFallback(parent));
+        Config factsConfig = ConfigFactory.parseMap(facts);
+
+        // resolve the hiera config with the provided facts
+        return hiera().resolveWith(factsConfig)
+                // retrieve and stream the resolved paths
+                .getStringList(HIERARCHY_CONFIG_KEY).stream()
+                // map each path to a configuration
+                .map(this::config)
+                // use the previous config as the fallback for the next
+                .reduce(ConfigFactory.empty(), (previous, next) -> next.withFallback(previous));
+
     }
 }

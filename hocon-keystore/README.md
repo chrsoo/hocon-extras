@@ -25,7 +25,9 @@ HOCON configuration entry path. For the example secret above the path becomes
 ```
 Config.Redacted
 ```
-This approach has its limits when it comes to secrets stored in an array:
+## Limitations
+Using the object path as the key for secrects has its limitations when the secrets are 
+found in an array:
 
 ```
 Config {
@@ -42,6 +44,11 @@ Config {
     ]
 }
 ```
+Although it would be possible to reference an entry using its array index this is not 
+a very good solution as the index changes if a preceding entry is added or removed.
+
+**For this reasons secrets in arrays is not supported.**
+
 The best solution is probably to change the structure from an array to an object
 
 ```
@@ -78,9 +85,22 @@ Config {
     ]
 }
 ```
+## Security
+Security for secrets stored in the keystore is of course bound by measures strength of the 
+taken to protect they keystoreitself, the strength of the password, strength of the 
+encryption algorithm etc.
+
+A particular weak spot is the managment of the password of the keystore which must be provided
+when starting the application and also made available to tools and operators managing the secrets
+in the keystore.
+
+Secrets are available in plain text to the application. Thus malicious code running inside the JVM
+can potentially access all secrets. Also secrets may be exposed if the application crashes, e.g.
+in a core dump file.
+
 ## API
 The Hocon Keystore API is centered around the `KeyStoreConfigEditor` class that provides
-a fluent API around a keystore. Typical usage in an application would look something
+a fluent API for managing a keystore. Typical usage in an application would look something
 like this:
 ```java
 InputStream stream = getClass().getResourceAsStream("/keystore.jceks");
