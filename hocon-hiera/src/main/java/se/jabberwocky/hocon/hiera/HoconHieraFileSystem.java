@@ -20,7 +20,6 @@ public class HoconHieraFileSystem implements HoconHiera {
     private final Path root;
 
     public HoconHieraFileSystem(String root) {
-        this(new File(root).toPath());
     }
 
     public HoconHieraFileSystem(Path root) {
