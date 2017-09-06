@@ -5,11 +5,11 @@ import com.typesafe.config.ConfigFactory;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 import static org.junit.Assert.assertEquals;
@@ -25,13 +25,13 @@ public class HoconKeyStoreToolTest {
         Path original;
 
         keystore = Files.createTempFile("hocon-", ".jceks");
-        original = Paths.get(getClass().getResource("/keystore.jceks").getFile());
+        original = new File(getClass().getResource("/keystore.jceks").getFile()).toPath();
         Files.copy(original, keystore, StandardCopyOption.REPLACE_EXISTING);
 
         editor = HoconKeyStoreEditor.create(keystore, "CHANGEME", KeyStoreType.JCEKS);
 
         conf = Files.createTempFile("application-", ".conf");
-        original = Paths.get(getClass().getResource("/application.conf").getFile());
+        original = new File(getClass().getResource("/application.conf").getFile()).toPath();
         Files.copy(original, conf, StandardCopyOption.REPLACE_EXISTING);
 
     }
