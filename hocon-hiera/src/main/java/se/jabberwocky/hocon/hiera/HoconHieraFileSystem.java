@@ -3,7 +3,11 @@ package se.jabberwocky.hocon.hiera;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
-import java.nio.file.*;
+import java.io.File;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * HOCON Hiera implementation backed by a FileSystem
@@ -16,7 +20,7 @@ public class HoconHieraFileSystem implements HoconHiera {
     private final Path root;
 
     public HoconHieraFileSystem(String root) {
-        this(Paths.get(root));
+        this(new File(root).toPath());
     }
 
     public HoconHieraFileSystem(Path root) {
