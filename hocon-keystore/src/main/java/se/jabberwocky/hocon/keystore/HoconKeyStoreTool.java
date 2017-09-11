@@ -56,11 +56,28 @@ public class HoconKeyStoreTool implements Runnable {
             .ofType(KeyStoreType.class)
             .defaultsTo(KeyStoreType.JCEKS);;
 
+    public static final int DEFAULT_SECRET_KEY_SIZE = 2048;
+    private static final OptionSpec<Integer> keySizeSpec = parser.accepts(
+            "key-size",
+            "Length of a generated key in bytes")
+            .withOptionalArg()
+            .ofType(Integer.class)
+            .defaultsTo(DEFAULT_SECRET_KEY_SIZE);
+
+    public static final String DEFAULT_SECRET_KEY_ALGORITHM = "HMacSHA256";
+    private static final OptionSpec<String> keyAlgSpec = parser.accepts(
+            "key-alg",
+            "Algorithm used when generating a key")
+            .withOptionalArg()
+            .ofType(String.class)
+            .defaultsTo(DEFAULT_SECRET_KEY_ALGORITHM);
+
     private static final NonOptionArgumentSpec<String> nonOptionsSpec = parser.nonOptions(
             "Supported comands:\n\n" +
                 "  get <key>               get an entry\n" +
                 "  del <key>               delete an entry\n" +
                 "  put <key>=<value>       update an entry\n" +
+                "  generate <key>          generate a secret key\n" +
                 "  update <config>         update entries in keystore\n" +
                 "  upsert <config>         insert or update entries in keystore\n" +
                 "  redact <config>         redact entries from keystore\n" +
@@ -76,10 +93,12 @@ public class HoconKeyStoreTool implements Runnable {
     private final String argument;
     private final boolean replace;
     private final boolean json;
+    private final String algorithm;
+    private final int size;
 
     public HoconKeyStoreTool(Path keystore, HoconKeyStoreEditor editor,
                              String command, String argument,
-                             boolean replace, boolean json) {
+                             boolean replace, boolean json, String algorithm, int size) {
 
         this.keystore = keystore;
         this.editor = editor;
@@ -88,6 +107,8 @@ public class HoconKeyStoreTool implements Runnable {
         this.replace = replace;
         this.json = json;
 
+        this.algorithm = algorithm;
+        this.size = size;
     }
 
     public static void main(String... args) throws IOException {
@@ -104,6 +125,8 @@ public class HoconKeyStoreTool implements Runnable {
             File keystore = options.valueOf(keystoreSpec);
             String password = options.valueOf(passwordSpec);
             KeyStoreType type = getStoreType(options);
+            String algorithm = options.valueOf(keyAlgSpec);
+            int size = options.valueOf(keySizeSpec);
             boolean create = options.has(createSpec);
             boolean replace = options.has(replaceSpec);
             boolean json = options.has(jsonSpec);
@@ -115,13 +138,13 @@ public class HoconKeyStoreTool implements Runnable {
             Path path = Paths.get(keystore.getPath());
 
             HoconKeyStoreEditor editor = create
-                    ? HoconKeyStoreEditor.create(path, password, type)
+                    ? HoconKeyStoreEditor.create(password, type)
                     : HoconKeyStoreEditor.from(path, password, type);
 
             HoconKeyStoreTool tool = new HoconKeyStoreTool(
                     path, editor,
                     command, argument,
-                    replace, json);
+                    replace, json, algorithm, size);
 
             tool.run();
             exit(SUCCESS);
@@ -188,6 +211,8 @@ public class HoconKeyStoreTool implements Runnable {
                 put(argument); break;
             case "del":
                 del(argument); break;
+            case "generate":
+                generate(argument); break;
             case "upsert":
                 manageKeystore(config -> editor.upsert(config)); break;
             case "update":
@@ -257,6 +282,10 @@ public class HoconKeyStoreTool implements Runnable {
 
     private void del(String argument) {
         editor.del(argument).to(keystore);;
+    }
+
+    private void generate(String argument) {
+        editor.generate(argument, algorithm, size).to(keystore);;
     }
 
     private void put(String argument) {
