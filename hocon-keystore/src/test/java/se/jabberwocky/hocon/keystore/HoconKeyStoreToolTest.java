@@ -13,6 +13,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 import static org.junit.Assert.assertEquals;
+import static se.jabberwocky.hocon.keystore.HoconKeyStoreTool.DEFAULT_SECRET_KEY_ALGORITHM;
+import static se.jabberwocky.hocon.keystore.HoconKeyStoreTool.DEFAULT_SECRET_KEY_SIZE;
 
 public class HoconKeyStoreToolTest {
 
@@ -28,7 +30,7 @@ public class HoconKeyStoreToolTest {
         original = new File(getClass().getResource("/keystore.jceks").getFile()).toPath();
         Files.copy(original, keystore, StandardCopyOption.REPLACE_EXISTING);
 
-        editor = HoconKeyStoreEditor.create(keystore, "CHANGEME", KeyStoreType.JCEKS);
+        editor = HoconKeyStoreEditor.from(keystore, "CHANGEME", KeyStoreType.JCEKS);
 
         conf = Files.createTempFile("application-", ".conf");
         original = new File(getClass().getResource("/application.conf").getFile()).toPath();
@@ -67,6 +69,11 @@ public class HoconKeyStoreToolTest {
     }
 
     @Test
+    public void run_generate() throws IOException {
+        run("generate", "generated", false, true);
+    }
+
+    @Test
     public void run_redact_replace() throws IOException, URISyntaxException {
         run("redact", conf, true, false);
 
@@ -98,7 +105,7 @@ public class HoconKeyStoreToolTest {
         HoconKeyStoreTool tool = new HoconKeyStoreTool(
                 keystore, editor,
                 command, argument,
-                replace, json);
+                replace, json, DEFAULT_SECRET_KEY_ALGORITHM, DEFAULT_SECRET_KEY_SIZE);
         tool.run();
     }
 

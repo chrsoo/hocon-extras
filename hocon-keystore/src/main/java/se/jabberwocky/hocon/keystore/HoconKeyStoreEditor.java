@@ -2,29 +2,35 @@ package se.jabberwocky.hocon.keystore;
 
 import com.typesafe.config.*;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.KeyStore;
 import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.SecretKeyEntry;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class HoconKeyStoreEditor {
 
     private static final Logger LOGGER = Logger.getLogger(HoconKeyStoreEditor.class.getName());
-
+    private static final Pattern encoded = Pattern.compile("^\\s*ENC\\((\\w+):(.*)\\)\\s*$");
+    public static final String DEFAULT_PBE_KEY_SPEC = "PBEWithHmacSHA224AndAES_256";
 
     private final KeyStore keyStore;
     private final PasswordProtection password;
@@ -36,7 +42,7 @@ public final class HoconKeyStoreEditor {
         this.password = new PasswordProtection(password.toCharArray());
 
         try {
-            this.secretKeyFactory = SecretKeyFactory.getInstance("PBE");
+            this.secretKeyFactory = SecretKeyFactory.getInstance(DEFAULT_PBE_KEY_SPEC);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Could not initialize the SecretConfigUtilities", e);
         }
@@ -167,15 +173,29 @@ public final class HoconKeyStoreEditor {
      */
     public HoconKeyStoreEditor put(String key, String secret) {
         try {
-            SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(secret.toCharArray()));
-            SecretKeyEntry secretKeyEntry = new SecretKeyEntry(secretKey);
-            keyStore.setEntry(key, secretKeyEntry, password);
+            SecretKey secretKey = createSecretKey(secret);
+            SecretKeyEntry keyEntry = new SecretKeyEntry(secretKey);
+            keyStore.setEntry(key, keyEntry, password);
             LOGGER.fine("Upserted value for key '" + key + "'");
         } catch (InvalidKeySpecException | KeyStoreException e) {
             throw new RuntimeException("Could not store key '" + key + "' in key store", e);
         }
 
         return  this;
+    }
+
+    private SecretKey createSecretKey(String secret) throws InvalidKeySpecException {
+        Matcher matcher = encoded.matcher(secret);
+        if(matcher.matches()) {
+            // Arbitrary secret keys (binary)
+            String algorithm = matcher.group(1);
+            String base64Secret = matcher.group(2);
+            byte[] byteSecret = Base64.getDecoder().decode(base64Secret);
+            return new SecretKeySpec(byteSecret, algorithm);
+        } else {
+            // Password Based Encryption secret keys (strings)
+            return secretKeyFactory.generateSecret(new PBEKeySpec(secret.toCharArray()));
+        }
     }
 
 
@@ -247,22 +267,44 @@ public final class HoconKeyStoreEditor {
     }
 
     public String get(String key) {
+        SecretKeyEntry secretKeyEntry = getSecretKeyEntry(key);
+        if(secretKeyEntry == null) {
+            return null;
+        }
+        SecretKey secretKey = secretKeyEntry.getSecretKey();
         try {
-            SecretKeyEntry ske = (SecretKeyEntry) keyStore.getEntry(key, password);
-            if(ske == null) {
-                return null;
+            return getPBESecret(secretKey);
+        } catch(NoSuchAlgorithmException | InvalidKeySpecException e) {
+            if(secretKey.getFormat().equals("RAW")) {
+                return "ENC(" + secretKey.getAlgorithm() + ":" +
+                        new String(Base64.getEncoder().encode(secretKey.getEncoded()))
+                        + ")";
+            } else {
+                throw new UnknownFormatConversionException("Cannot handle key format '" + secretKey.getFormat() + "'");
             }
+        }
+    }
 
-            PBEKeySpec keySpec = (PBEKeySpec) secretKeyFactory.getKeySpec(
-                    ske.getSecretKey(),
-                    PBEKeySpec.class);
-
-            char[] secret = keySpec.getPassword();
-            return new String(secret);
-
-        } catch (Exception e) {
+    private SecretKeyEntry getSecretKeyEntry(String key) {
+        try {
+            if(keyStore.isKeyEntry(key)) {
+                return (SecretKeyEntry) keyStore.getEntry(key, password);
+            }
+            if(keyStore.isCertificateEntry(key)) {
+                throw new IllegalArgumentException("Certifiactes entries not supported!");
+            }
+            // key entry not found
+            return null;
+        } catch (NoSuchAlgorithmException | UnrecoverableEntryException | KeyStoreException e) {
             throw new RuntimeException("Could not retrieve secret for key '" + key + "' from key store", e);
         }
+    }
+
+    private String getPBESecret(SecretKey secretKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(secretKey.getAlgorithm());
+        PBEKeySpec keySpec = (PBEKeySpec) keyFactory.getKeySpec(secretKey, PBEKeySpec.class);
+        char[] secret = keySpec.getPassword();
+        return new String(secret);
     }
 
 
@@ -275,19 +317,8 @@ public final class HoconKeyStoreEditor {
         }
     }
 
-    public static HoconKeyStoreEditor create(Path path, String password, KeyStoreType type) {
-        try {
-            if(!Files.exists(path)) {
-                path = Files.createFile(path);
-
-            }
-            InputStream stream = Files.newInputStream(path);
-
-            return from(stream, password, type);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not open the path '" + path + "'", e);
-        }
-
+    public static HoconKeyStoreEditor create(String password, KeyStoreType type) {
+        return from((InputStream) null, password, type);
     }
 
     public static HoconKeyStoreEditor from(Path path, String password, KeyStoreType type) {
@@ -308,6 +339,16 @@ public final class HoconKeyStoreEditor {
 
         } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
             throw new RuntimeException("Could not load key store", e);
+        }
+    }
+
+    public void to(KeyStore keyStore) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        to(stream);
+        try {
+            keyStore.load(new ByteArrayInputStream(stream.toByteArray()), password.getPassword());
+        } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
+            throw new RuntimeException("Could not write key store", e);
         }
     }
 
@@ -338,6 +379,33 @@ public final class HoconKeyStoreEditor {
         } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException e) {
             throw new RuntimeException("Could not write keystore to '" + path.toAbsolutePath().toString() + "'", e);
         }
+    }
+
+
+    /**
+     * Generate a secret key for the given alias using the keystore password for protection.
+     *
+     * @param alias the alias under which to store the key
+     * @param algorithm the secret key algorithm
+     * @param size the size of the secret key, cf. the allowed values for the algorithm
+     * @return this for a fluent interface
+     */
+    public HoconKeyStoreEditor generate(String alias, String algorithm, int size) {
+        try {
+
+            KeyGenerator keyGen = KeyGenerator.getInstance(algorithm);
+            keyGen.init(size);
+
+            SecretKey secretKey = keyGen.generateKey();
+            KeyStore.Entry entry = new SecretKeyEntry(secretKey);
+
+            keyStore.setEntry(alias, entry, password);
+
+            return this;
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Could generate secret key", e);
+        }
+
     }
 
     // -- private methods

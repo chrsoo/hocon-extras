@@ -12,15 +12,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.KeyStore.PasswordProtection;
+import java.security.KeyStore.SecretKeyEntry;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Base64;
 
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
 public class HoconKeyStoreEditorTest {
 
@@ -36,7 +38,7 @@ public class HoconKeyStoreEditorTest {
         keyStore = KeyStore.getInstance("JCEKS");
         keyStore.load(null, password);
 
-        factory = SecretKeyFactory.getInstance("PBE");
+        factory = SecretKeyFactory.getInstance(HoconKeyStoreEditor.DEFAULT_PBE_KEY_SPEC);
         keyStorePP = new PasswordProtection(password);
 
         addSecret("Config.Secret", "SECRET");
@@ -69,6 +71,33 @@ public class HoconKeyStoreEditorTest {
     public void get() throws Exception {
         String actual = HoconKeyStoreEditor.with(keyStore, "CHANGEME").get("Config.Redacted");
         assertEquals("REDACTED", actual);
+    }
+
+    @Test
+    public void generate() throws Exception {
+        HoconKeyStoreEditor editor = HoconKeyStoreEditor.create("CHANGEME", KeyStoreType.JCEKS);
+        String actual = editor
+                .generate("secret", "HMacSHA256", 2048)
+                .get("secret");
+
+        int index = actual.indexOf(":");
+        assertEquals("ENC(HmacSHA256", actual.substring(0, index));
+        assertTrue(actual.endsWith(")"));
+
+        String base64 = actual.substring(index+1, actual.length() - 1);
+        byte[] decoded = Base64.getDecoder().decode(base64);
+
+        editor.put("encoded", actual);
+        KeyStore keyStore = KeyStore.getInstance(KeyStoreType.JCEKS.name());
+        editor.to(keyStore);
+        SecretKeyEntry entry = (SecretKeyEntry) keyStore.getEntry(
+                "encoded", new PasswordProtection("CHANGEME".toCharArray()));
+
+        SecretKey encodedKey = entry.getSecretKey();
+        assertEquals("RAW", encodedKey.getFormat());
+        byte[] encoded = encodedKey.getEncoded();
+
+        assertArrayEquals(decoded, encoded);
     }
 
     @Test
@@ -140,6 +169,14 @@ public class HoconKeyStoreEditorTest {
         assertEquals("REDACTED", revealed.getString("Config.Redacted"));
     }
 
+    @Test
+    public void create() {
+        HoconKeyStoreEditor editor = HoconKeyStoreEditor.create("CHANGEME", KeyStoreType.JCEKS)
+                .put("secret", "CHANGEME")
+                ;
+        assertEquals("CHANGEME", editor.get("secret"));
+    }
+
     private void assertKeyStoreEntry(String key, String secret) throws UnrecoverableEntryException, NoSuchAlgorithmException, KeyStoreException, InvalidKeySpecException {
 
         if( secret == null) {
@@ -148,7 +185,7 @@ public class HoconKeyStoreEditorTest {
         }
 
         KeyStore.Entry entry = keyStore.getEntry(key, keyStorePP);
-        KeyStore.SecretKeyEntry ske = (KeyStore.SecretKeyEntry) keyStore.getEntry(key, keyStorePP);
+        SecretKeyEntry ske = (SecretKeyEntry) keyStore.getEntry(key, keyStorePP);
 
         assertNotNull("KeyStore entry must not be null", ske);
 
@@ -160,7 +197,7 @@ public class HoconKeyStoreEditorTest {
 
     private void addSecret(String key, String secret) throws KeyStoreException, InvalidKeySpecException {
         SecretKey generatedSecret = factory.generateSecret(new PBEKeySpec(secret.toCharArray()));
-        keyStore.setEntry(key, new KeyStore.SecretKeyEntry(generatedSecret), keyStorePP);
+        keyStore.setEntry(key, new SecretKeyEntry(generatedSecret), keyStorePP);
     }
 
 }
