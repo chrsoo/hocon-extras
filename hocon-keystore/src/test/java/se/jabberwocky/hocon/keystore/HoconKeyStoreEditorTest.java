@@ -18,11 +18,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Base64;
 
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
 
 public class HoconKeyStoreEditorTest {
 
@@ -75,29 +74,19 @@ public class HoconKeyStoreEditorTest {
 
     @Test
     public void generate() throws Exception {
-        HoconKeyStoreEditor editor = HoconKeyStoreEditor.create("CHANGEME", KeyStoreType.JCEKS);
-        String actual = editor
+        HoconKeyStoreEditor editor = HoconKeyStoreEditor.with(keyStore, "CHANGEME");
+        SecretKey generated = editor
                 .generate("secret", "HMacSHA256", 2048)
-                .get("secret");
+                .getSecretKey("secret");
 
-        int index = actual.indexOf(":");
-        assertEquals("ENC(HmacSHA256", actual.substring(0, index));
-        assertTrue(actual.endsWith(")"));
+        assertNotNull(generated);
 
-        String base64 = actual.substring(index+1, actual.length() - 1);
-        byte[] decoded = Base64.getDecoder().decode(base64);
-
-        editor.put("encoded", actual);
-        KeyStore keyStore = KeyStore.getInstance(KeyStoreType.JCEKS.name());
-        editor.to(keyStore);
         SecretKeyEntry entry = (SecretKeyEntry) keyStore.getEntry(
-                "encoded", new PasswordProtection("CHANGEME".toCharArray()));
+                "secret", new PasswordProtection("CHANGEME".toCharArray()));
 
-        SecretKey encodedKey = entry.getSecretKey();
-        assertEquals("RAW", encodedKey.getFormat());
-        byte[] encoded = encodedKey.getEncoded();
-
-        assertArrayEquals(decoded, encoded);
+        assertNotNull(entry);
+        SecretKey actual = entry.getSecretKey();
+        assertEquals(generated, actual);
     }
 
     @Test

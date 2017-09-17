@@ -6,7 +6,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,16 +19,16 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class HoconKeyStoreEditor {
 
     private static final Logger LOGGER = Logger.getLogger(HoconKeyStoreEditor.class.getName());
-    private static final Pattern encoded = Pattern.compile("^\\s*ENC\\((\\w+):(.*)\\)\\s*$");
     public static final String DEFAULT_PBE_KEY_SPEC = "PBEWithHmacSHA224AndAES_256";
 
     private final KeyStore keyStore;
@@ -173,7 +172,7 @@ public final class HoconKeyStoreEditor {
      */
     public HoconKeyStoreEditor put(String key, String secret) {
         try {
-            SecretKey secretKey = createSecretKey(secret);
+            SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(secret.toCharArray()));
             SecretKeyEntry keyEntry = new SecretKeyEntry(secretKey);
             keyStore.setEntry(key, keyEntry, password);
             LOGGER.fine("Upserted value for key '" + key + "'");
@@ -183,21 +182,6 @@ public final class HoconKeyStoreEditor {
 
         return  this;
     }
-
-    private SecretKey createSecretKey(String secret) throws InvalidKeySpecException {
-        Matcher matcher = encoded.matcher(secret);
-        if(matcher.matches()) {
-            // Arbitrary secret keys (binary)
-            String algorithm = matcher.group(1);
-            String base64Secret = matcher.group(2);
-            byte[] byteSecret = Base64.getDecoder().decode(base64Secret);
-            return new SecretKeySpec(byteSecret, algorithm);
-        } else {
-            // Password Based Encryption secret keys (strings)
-            return secretKeyFactory.generateSecret(new PBEKeySpec(secret.toCharArray()));
-        }
-    }
-
 
     /**
      * Update all values in the key store for the keys found in the config. If one or more keys are missing in the key
@@ -267,28 +251,19 @@ public final class HoconKeyStoreEditor {
     }
 
     public String get(String key) {
-        SecretKeyEntry secretKeyEntry = getSecretKeyEntry(key);
-        if(secretKeyEntry == null) {
+        SecretKey secretKey = getSecretKey(key);
+        if(secretKey == null) {
             return null;
         }
-        SecretKey secretKey = secretKeyEntry.getSecretKey();
-        try {
-            return getPBESecret(secretKey);
-        } catch(NoSuchAlgorithmException | InvalidKeySpecException e) {
-            if(secretKey.getFormat().equals("RAW")) {
-                return "ENC(" + secretKey.getAlgorithm() + ":" +
-                        new String(Base64.getEncoder().encode(secretKey.getEncoded()))
-                        + ")";
-            } else {
-                throw new UnknownFormatConversionException("Cannot handle key format '" + secretKey.getFormat() + "'");
-            }
-        }
+
+        return getConfigSecret(secretKey);
     }
 
-    private SecretKeyEntry getSecretKeyEntry(String key) {
+    public SecretKey getSecretKey(String key) {
         try {
             if(keyStore.isKeyEntry(key)) {
-                return (SecretKeyEntry) keyStore.getEntry(key, password);
+                SecretKeyEntry entry = (SecretKeyEntry) keyStore.getEntry(key, password);
+                return entry.getSecretKey();
             }
             if(keyStore.isCertificateEntry(key)) {
                 throw new IllegalArgumentException("Certifiactes entries not supported!");
@@ -300,11 +275,15 @@ public final class HoconKeyStoreEditor {
         }
     }
 
-    private String getPBESecret(SecretKey secretKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(secretKey.getAlgorithm());
-        PBEKeySpec keySpec = (PBEKeySpec) keyFactory.getKeySpec(secretKey, PBEKeySpec.class);
-        char[] secret = keySpec.getPassword();
-        return new String(secret);
+    private String getConfigSecret(SecretKey secretKey) {
+        try {
+            SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(secretKey.getAlgorithm());
+            PBEKeySpec keySpec = (PBEKeySpec) keyFactory.getKeySpec(secretKey, PBEKeySpec.class);
+            char[] secret = keySpec.getPassword();
+            return new String(secret);
+        } catch (NoSuchAlgorithmException |InvalidKeySpecException e) {
+            throw new IllegalStateException("Could not get config secret", e);
+        }
     }
 
 
