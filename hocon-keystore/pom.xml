@@ -5,7 +5,7 @@
     <parent>
         <artifactId>hocon-extras</artifactId>
         <groupId>se.jabberwocky.hocon</groupId>
-        <version>0.1-SNAPSHOT</version>
+        <version>0.2-SNAPSHOT</version>
     </parent>
 
     <description>Managing secrets for HOCON</description>
