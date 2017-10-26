@@ -10,7 +10,7 @@
 
     <description>Add on functionality for HOCON</description>
 
-    <version>0.1-SNAPSHOT</version>
+    <version>0.1</version>
 
     <modules>
         <module>hocon-keystore</module>
